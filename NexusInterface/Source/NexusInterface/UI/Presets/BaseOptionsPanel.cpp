@@ -4,6 +4,7 @@
 #include "BaseOptionsPanel.h"
 
 #include "NexusInterface/Game/NexusInterfaceSettings.h"
+#include "Widgets/CommonActivatableWidgetContainer.h"
 
 void UBaseOptionsPanel::NativePreConstruct()
 {
