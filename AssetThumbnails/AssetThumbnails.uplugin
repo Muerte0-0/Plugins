@@ -1,0 +1,38 @@
+{
+	"FileVersion": 3,
+	"Version": 102,
+	"VersionName": "1.2.5.7",
+	"FriendlyName": "Asset Thumbnails",
+	"Description": "This plugin enables adding custom thumbnail icons to Blueprints and DataAssets directly within the Unreal Editor.",
+	"Category": "Creative Elicya",
+	"CreatedBy": "Creative Elicya",
+	"CreatedByURL": "https://x.com/CreativeElicya",
+	"DocsURL": "https://docs.google.com/document/d/18DP8F7K9OIDWd3hgdE10BiZD2U8jZ7yDVSmraByAJCo",
+	"MarketplaceURL": "",
+	"SupportURL": "https://discord.gg/FaHFJDZN3e",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "AssetThumbnails",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "PreDefault",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
+		},
+		{
+			"Name": "AssetThumbnailsEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PreDefault",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
+		}
+	]
+}
