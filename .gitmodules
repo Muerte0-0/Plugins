@@ -1,0 +1,4 @@
+[submodule "SteamIntegrationKit"]
+	path = SteamIntegrationKit
+	url = https://github.com/Muerte0-0/SteamIntegrationKit.git
+	branch = main
