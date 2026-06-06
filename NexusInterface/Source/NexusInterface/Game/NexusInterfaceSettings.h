@@ -13,7 +13,7 @@
 /**
  * 
  */
-UCLASS(ClassGroup="Nexus Interface", Config=NexusFramework, DefaultConfig, meta=(DisplayName = "Nexus Interface"))
+UCLASS(ClassGroup="Nexus Interface", Config=WonderveilStudios, DefaultConfig, meta=(DisplayName = "Nexus Interface"))
 class NEXUSINTERFACE_API UNexusInterfaceSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -25,10 +25,10 @@ public:
 	TSoftObjectPtr<UTexture2D> ProjectIcon;
 	
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly)
-	FVector2D ProjectIconSize = FVector2D(800, 400);
+	FVector2D ProjectIconSize = FVector2D(400, 200);
 	
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly)
-	FMargin ProjectIconPadding = FMargin(200, 200, 0, 0);
+	FMargin ProjectIconPadding = FMargin(100, 200, 0, 0);
 	
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly)
 	TSoftObjectPtr<UNexusInterfaceThemeConfig> ThemeConfig;
@@ -38,7 +38,7 @@ public:
 	
 #if WITH_EDITOR
 	
-	virtual FName GetCategoryName() const override { return TEXT("Nexus Framework"); }
+	virtual FName GetCategoryName() const override { return TEXT("Wonderveil Studios"); }
 	
 #endif
 	
