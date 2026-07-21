@@ -10,6 +10,12 @@
 #include "ViewmodelController.generated.h"
 
 // ---------------------------------------------------------------
+//  Footstep notify
+// ---------------------------------------------------------------
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFootstep, bool, bIsLeftFoot);
+
+// ---------------------------------------------------------------
 //  Anim State
 // ---------------------------------------------------------------
 
@@ -74,6 +80,8 @@ struct FVMMovementState
     float NoiseTime = 0.0f;
     float Alpha = 0.0f;
     float AlphaVelocity = 0.0f;
+
+    float PreviousPhaseTime = 0.0f;
     
     FGameplayTag LastGaitTag;
     FVMMovementGaitSettings ActiveGaitCfg;
@@ -126,11 +134,17 @@ public:
     UFUNCTION(BlueprintPure, Category = "Viewmodel")
     const FVMAnimState& GetAnimState() const { return AnimState; }
 
+    // Fired when the viewmodel bob cycle crosses a configured footstep phase.
+    // LOCAL ONLY — reflects the owning client's arms viewmodel, not authoritative movement.
+    UPROPERTY(BlueprintAssignable, Category = "Viewmodel|Footsteps")
+    FOnFootstep OnFootstep;
+
 private:
     void UpdateMovement(float DeltaTime);
     void UpdateLag(float DeltaTime);
     void UpdateSway(float DeltaTime);
     void UpdateIKMotion(float DeltaTime);
+    void UpdateFootsteps();
 
     UPROPERTY()
     TObjectPtr<UViewmodelData> ActiveViewmodelData;

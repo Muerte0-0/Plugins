@@ -122,6 +122,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement|Noise", meta = (UIMin = "0", UIMax = "2"))
 	float NoiseRotRollScale = 0.5f;    // extra roll noise (degrees)
 
+	// ------------------------------------------------------------
+	//  FOOTSTEPS (local-only viewmodel step notify)
+	// ------------------------------------------------------------
+
+	// Normalized points [0,1] in the stride cycle where OnFootstep fires.
+	// X = first foot (right), Y = second foot (left).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement|Footsteps", meta = (UIMin = "0", UIMax = "1"))
+	FVector2D FootstepPhases = FVector2D(0.25f, 0.75f);
+
 	// Alpha interp speed — how fast Movement fades in/out when starting/stopping
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement", meta = (UIMin = "1", UIMax = "30"))
 	float AlphaInterpSpeed = 10.0f;

@@ -45,4 +45,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "ViewmodelContext")
 	UCameraComponent* GetActiveCamera() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "ViewmodelContext")
+	USkeletalMeshComponent* GetViewmodelMesh() const;
 };

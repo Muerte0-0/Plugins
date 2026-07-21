@@ -27,6 +27,7 @@ void UViewmodelController::BeginPlay()
             MovementState.LastGaitTag = InitialGait;
             MovementState.ActiveGaitCfg = ActiveViewmodelData->GetGaitSettings(InitialGait);
             MovementState.TargetGaitCfg = MovementState.ActiveGaitCfg;
+            MovementState.PreviousPhaseTime = MovementState.PhaseTime;
             
             if (ActiveViewmodelData->bEnableLeftHand)
                 MovementState.LeftHandPhaseTime = ActiveViewmodelData->LeftHandPhaseOffset;
@@ -45,6 +46,7 @@ void UViewmodelController::TickComponent(float DeltaTime, ELevelTick TickType, F
 
     UpdateSway(DeltaTime);
     UpdateMovement(DeltaTime);
+    UpdateFootsteps();
     UpdateLag(DeltaTime);
     UpdateIKMotion(DeltaTime);
 }
@@ -59,6 +61,7 @@ void UViewmodelController::SetViewmodelData(UViewmodelData* NewData)
         MovementState.LastGaitTag   = CurrentGait;
         MovementState.ActiveGaitCfg = ActiveViewmodelData->GetGaitSettings(CurrentGait);
         MovementState.TargetGaitCfg = MovementState.ActiveGaitCfg;
+        MovementState.PreviousPhaseTime = MovementState.PhaseTime;
 
         if (ActiveViewmodelData->bEnableLeftHand)
             MovementState.LeftHandPhaseTime = ActiveViewmodelData->LeftHandPhaseOffset;
@@ -75,6 +78,7 @@ void UViewmodelController::ResetViewmodelData()
     MovementState.LastGaitTag   = CurrentGait;
     MovementState.ActiveGaitCfg = ActiveViewmodelData->GetGaitSettings(CurrentGait);
     MovementState.TargetGaitCfg = MovementState.ActiveGaitCfg;
+    MovementState.PreviousPhaseTime = MovementState.PhaseTime;
 
     if (ActiveViewmodelData->bEnableLeftHand)
         MovementState.LeftHandPhaseTime = ActiveViewmodelData->LeftHandPhaseOffset;
@@ -186,6 +190,39 @@ void UViewmodelController::UpdateMovement(float DeltaTime)
         AnimState.LeftHandMovePos = AnimState.MoveAnimPos;
         AnimState.LeftHandMoveRot = AnimState.MoveAnimRot;
     }
+}
+
+// ---------------------------------------------------------------
+//  Footsteps
+// ---------------------------------------------------------------
+
+void UViewmodelController::UpdateFootsteps()
+{
+    const float PrevPhase = MovementState.PreviousPhaseTime;
+    const float CurPhase  = MovementState.PhaseTime;
+
+    // Phase frozen (Alpha below deadzone, character not moving) — nothing to detect.
+    if (MovementState.Alpha < KINDA_SMALL_NUMBER || FMath::IsNearlyEqual(PrevPhase, CurPhase))
+    {
+        MovementState.PreviousPhaseTime = CurPhase;
+        return;
+    }
+
+    const bool bWrapped = CurPhase < PrevPhase;
+    const FVector2D& Markers = ActiveViewmodelData->FootstepPhases; // X = right foot, Y = left foot
+
+    const bool bCrossedRight = bWrapped
+        ? (Markers.X > PrevPhase || Markers.X <= CurPhase)
+        : (Markers.X > PrevPhase && Markers.X <= CurPhase);
+
+    const bool bCrossedLeft = bWrapped
+        ? (Markers.Y > PrevPhase || Markers.Y <= CurPhase)
+        : (Markers.Y > PrevPhase && Markers.Y <= CurPhase);
+
+    if (bCrossedRight) OnFootstep.Broadcast(false);
+    if (bCrossedLeft)  OnFootstep.Broadcast(true);
+
+    MovementState.PreviousPhaseTime = CurPhase;
 }
 
 // ---------------------------------------------------------------
