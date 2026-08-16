@@ -320,7 +320,7 @@ struct FNISCoefficients : public FRenderResource
 			const uint32 CoefficientSize = CoefficientStride * kPhaseCount;
 
 			FNISCoefficientsResourceBulkData BulkData(coef_scale, CoefficientSize);
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+#if !UE_VERSION_OLDER_THAN(5,1,0)
 			FRHITextureCreateDesc ScalerDesc = FRHITextureCreateDesc::Create2D(TEXT("FNISCoefficients::Scaler"))
 				.SetExtent(kFilterSize / 4, kPhaseCount)
 				.SetFormat(PF_A32B32G32R32F)
@@ -332,7 +332,7 @@ struct FNISCoefficients : public FRenderResource
 #else
 				.SetInitActionBulkData(&BulkData);
 #endif
-			ScalerRHI = RHICreateTexture(ScalerDesc);
+			ScalerRHI = RHICmdList.CreateTexture(ScalerDesc);
 #else
 			FRHIResourceCreateInfo CreateInfo(TEXT("FNISCoefficients::Scaler"));
 			CreateInfo.BulkData = &BulkData;
@@ -357,7 +357,7 @@ struct FNISCoefficients : public FRenderResource
 #else
 				.SetInitActionBulkData(&BulkData);
 #endif
-			UsmRHI = RHICreateTexture(UsmDesc);
+			UsmRHI = RHICmdList.CreateTexture(UsmDesc);
 #else
 			FRHIResourceCreateInfo CreateInfo(TEXT("FNISCoefficients::Usm"));
 			CreateInfo.BulkData = &BulkData;
@@ -371,7 +371,7 @@ struct FNISCoefficients : public FRenderResource
 			const uint32 CoefficientSize = CoefficientStride * kPhaseCount;
 
 			FNISCoefficientsResourceBulkData BulkData(coef_scale_fp16, CoefficientSize);
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+#if !UE_VERSION_OLDER_THAN(5,1,0)
 			FRHITextureCreateDesc ScalerHalfDesc = FRHITextureCreateDesc::Create2D(TEXT("FNISCoefficients::ScalerHalfPrecision"))
 				.SetExtent(kFilterSize / 4, kPhaseCount)
 				.SetFormat(PF_FloatRGBA)
@@ -383,7 +383,7 @@ struct FNISCoefficients : public FRenderResource
 #else
 				.SetInitActionBulkData(&BulkData);
 #endif
-			ScalerHalfPrecisionRHI = RHICreateTexture(ScalerHalfDesc);
+			ScalerHalfPrecisionRHI = RHICmdList.CreateTexture(ScalerHalfDesc);
 #else
 			FRHIResourceCreateInfo CreateInfo(TEXT("FNISCoefficients::ScalerHalfPrecision"));
 			CreateInfo.BulkData = &BulkData;
@@ -396,7 +396,7 @@ struct FNISCoefficients : public FRenderResource
 			const uint32 CoefficientSize = CoefficientStride * kPhaseCount;
 
 			FNISCoefficientsResourceBulkData BulkData(coef_usm_fp16, CoefficientSize);
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+#if !UE_VERSION_OLDER_THAN(5,1,0)
 			FRHITextureCreateDesc UsmHalfDesc = FRHITextureCreateDesc::Create2D(TEXT("FNISCoefficients::UsmHalfPrecision"))
 				.SetExtent(kFilterSize / 4, kPhaseCount)
 				.SetFormat(PF_FloatRGBA)
@@ -408,7 +408,7 @@ struct FNISCoefficients : public FRenderResource
 #else
 				.SetInitActionBulkData(&BulkData);
 #endif
-			UsmHalfPrecisionRHI = RHICreateTexture(UsmHalfDesc);
+			UsmHalfPrecisionRHI = RHICmdList.CreateTexture(UsmHalfDesc);
 #else
 			FRHIResourceCreateInfo CreateInfo(TEXT("FNISCoefficients::UsmHalfPrecision"));
 			CreateInfo.BulkData = &BulkData;

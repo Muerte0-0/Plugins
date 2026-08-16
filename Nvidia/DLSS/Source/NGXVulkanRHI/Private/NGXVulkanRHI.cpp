@@ -178,7 +178,11 @@ void FNGXVulkanRHI::ExecuteDLSS(FRHICommandList& CmdList, const FRHIDLSSArgument
 
 	InArguments.Validate();
 
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+	VkCommandBuffer VulkanCommandBuffer = VulkanRHI->RHIGetVkCommandBuffer(CmdList);
+#else
 	VkCommandBuffer VulkanCommandBuffer = VulkanRHI->RHIGetActiveVkCommandBuffer();
+#endif
 	
 	if (InDLSSState->RequiresFeatureRecreation(InArguments))
 	{
@@ -473,7 +477,9 @@ void FNGXVulkanRHI::ExecuteDLSS(FRHICommandList& CmdList, const FRHIDLSSArgument
 	}
 	InDLSSState->DLSSFeature->Tick(FrameCounter);
 
+#if UE_VERSION_OLDER_THAN(5,8,0)
 	VulkanRHI->RHIRegisterWork(1);
+#endif
 	VulkanRHI->RHIFinishExternalComputeWork(VulkanCommandBuffer);
 }
 

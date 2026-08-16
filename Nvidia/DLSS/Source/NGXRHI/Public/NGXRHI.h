@@ -106,6 +106,7 @@ struct FDLSSFeatureDesc
 			switch (NGXPreset)
 			{
 				case NVSDK_NGX_DLSS_Hint_Render_Preset_Default:return TEXT("Default");
+				case NVSDK_NGX_DLSS_Hint_Render_Preset_E:return TEXT("Preset E");
 				case NVSDK_NGX_DLSS_Hint_Render_Preset_F:return TEXT("Preset F");
 				case NVSDK_NGX_DLSS_Hint_Render_Preset_G:return TEXT("Preset G");
 				case NVSDK_NGX_DLSS_Hint_Render_Preset_H_Reserved:return TEXT("Preset H");

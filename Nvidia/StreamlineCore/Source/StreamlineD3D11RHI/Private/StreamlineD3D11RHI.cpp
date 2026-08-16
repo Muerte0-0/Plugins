@@ -196,7 +196,7 @@ public:
 		UE_LOG(LogStreamlineD3D11RHI, Log, TEXT("%s Leave"), ANSI_TO_TCHAR(__FUNCTION__));
 	}
 
-	virtual void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const TArrayView<const FRHIStreamlineResource> InResources) final
+	virtual void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const TArrayView<const FRHIStreamlineResource> InResources, bool bIsValidUntilEval = false) final
 	{
 
 #if ENGINE_PROVIDES_ID3D11DYNAMICRHI
@@ -224,7 +224,7 @@ public:
 			Tag.resource = &SLResource;
 			Tag.type = ToSL(Resource.StreamlineTag);
 			// TODO: sl::ResourceLifecycle::eValidUntilPreset would be more efficient, are there any textures where it's applicable?
-			Tag.lifecycle = sl::ResourceLifecycle::eOnlyValidNow;
+			Tag.lifecycle = bIsValidUntilEval ? sl::ResourceLifecycle::eValidUntilEvaluate : sl::ResourceLifecycle::eOnlyValidNow;
 			Tag.extent = ToSL(Resource.ViewRect);
 
 			// when removing this deprecated path, we only need to keep the else block

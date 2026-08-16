@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 133,
-	"VersionName": "8.6.1-SL2.11.1",
+	"Version": 138,
+	"VersionName": "8.7.2-SL2.11.1",
 	"FriendlyName": "NVIDIA Streamline Core (hidden, implementation detail)",
 	"Description": "Please use the specific NVIDIA Streamline feature plugins for DLSS-FG etc",
 	"Category": "Rendering",
@@ -10,12 +10,23 @@
 	"DocsURL": "",
 	"MarketplaceURL": "https://www.unrealengine.com/marketplace/en-US/product/nvidia-dlss",
 	"SupportURL": "mailto:DLSS-Support@nvidia.com",
-	"EngineVersion": "5.7.0",
+	"EngineVersion": "5.8.0",
 	"CanContainContent": false,
 	"Installed": true,
 	"Modules": [
 		{
 			"Name": "StreamlineShaders",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [
+				"Win64"
+			],
+			"PlatformArchitectureDenyList": [
+				"Win64:arm64"
+			]
+		},
+		{
+			"Name": "StreamlineExtension",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
 			"PlatformAllowList": [

@@ -11,14 +11,15 @@
 
 #include "VelocityCombinePass.h"
 
+#include "Misc/EngineVersionComparison.h"
 #include "RenderGraphUtils.h"
-#include "Runtime/Launch/Resources/Version.h"
+#include "SceneView.h"
 #include "ScreenPass.h"
 
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 2
+#if !UE_VERSION_OLDER_THAN(5,2,0)
 #include "DataDrivenShaderPlatformInfo.h"
 #endif
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 3
+#if UE_VERSION_OLDER_THAN(5,3,0)
 #include "ScenePrivate.h"
 #endif
 
@@ -79,7 +80,7 @@ IMPLEMENT_GLOBAL_SHADER(FVelocityCombineCS, "/Plugin/DLSS/Private/VelocityCombin
 
 FRDGTextureRef AddVelocityCombinePass(
 	FRDGBuilder& GraphBuilder,
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3
+#if !UE_VERSION_OLDER_THAN(5,3,0)
 	const FSceneView& View,
 #else
 	const FViewInfo& View,

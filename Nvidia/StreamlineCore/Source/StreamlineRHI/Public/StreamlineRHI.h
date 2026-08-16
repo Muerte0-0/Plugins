@@ -209,20 +209,20 @@ public:
 	UE_API virtual void SetStreamlineData(FRHICommandList& CmdList, const FRHIStreamlineArguments& InArguments);
 	UE_API void StreamlineEvaluateDeepDVC(FRHICommandList& CmdList, const FRHIStreamlineResource& InputOutput, sl::FrameToken* FrameToken, uint32 ViewID);
 	
-	void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, std::initializer_list< FRHIStreamlineResource> InResources)
+	void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, std::initializer_list< FRHIStreamlineResource> InResources, bool bIsValidUntilEval = false)
 	{
-		TagTextures(CmdList, InViewID, FrameToken, MakeArrayView(InResources));
+		TagTextures(CmdList, InViewID, FrameToken, MakeArrayView(InResources), bIsValidUntilEval);
 	}
 
-	void TagTexture(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const FRHIStreamlineResource& InResource)
+	void TagTexture(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const FRHIStreamlineResource& InResource, bool bIsValidUntilEval = false)
 	{
-		TagTextures(CmdList, InViewID, FrameToken, MakeArrayView<const FRHIStreamlineResource>(&InResource, 1));
+		TagTextures(CmdList, InViewID, FrameToken, MakeArrayView<const FRHIStreamlineResource>(&InResource, 1), bIsValidUntilEval);
 	}
 
 	// Implemented by API specific  subclasses
 	//	
 public: 
-	virtual void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const TArrayView<const FRHIStreamlineResource> InResources) = 0;
+	virtual void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const TArrayView<const FRHIStreamlineResource> InResources, bool bIsValidUntilEval = false) = 0;
 	virtual const sl::AdapterInfo* GetAdapterInfo() = 0;
 	virtual void APIErrorHandler(const sl::APIError& LastError) const = 0;
 	
@@ -339,6 +339,7 @@ public:
 
 private:
 	FString StreamlineBinaryDirectory;
+	FString StreamlineBinaryFlavor;
 };
 
 STREAMLINERHI_API void PlatformCreateStreamlineRHI();

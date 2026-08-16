@@ -34,10 +34,14 @@ public:
 	virtual bool NeedsAdvanceBackbuffer() override final { return true; }
 
 	// Engine should use its normal Present
-#if !UE_VERSION_OLDER_THAN(5,5,0)
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+	virtual bool Present(FRHIViewport*, IRHICommandContext&, int32&) override final { return true; };
+	virtual bool PresentOnSubmissionThread(int32& InOutSyncInterval) override final { return true; };
+#elif !UE_VERSION_OLDER_THAN(5,5,0)
 	virtual bool Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval) override final { return true; };
 #else
 	virtual bool Present(int32& InOutSyncInterval) override final { return true; }
 #endif
+
 };
 

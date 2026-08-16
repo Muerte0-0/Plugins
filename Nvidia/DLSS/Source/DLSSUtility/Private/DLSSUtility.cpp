@@ -16,6 +16,8 @@
 
 #define LOCTEXT_NAMESPACE "FDLSSUtilityModule"
 
+DEFINE_LOG_CATEGORY(LogDLSSUtility);
+
 void FDLSSUtilityModule::StartupModule()
 {
 	FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("DLSS"))->GetBaseDir(), TEXT("Shaders"));

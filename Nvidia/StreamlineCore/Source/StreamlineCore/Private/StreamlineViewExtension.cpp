@@ -62,7 +62,11 @@ static TAutoConsoleVariable<bool> CVarStreamlineTagVelocities(
 	TEXT("Pass motion vectors into Streamline  (default = true)\n"),
 	ECVF_RenderThreadSafe);
 
-
+static TAutoConsoleVariable<bool> CVarStreamlineForceTagging(
+	TEXT("r.Streamline.ForceTagging"),
+	false,
+	TEXT("Force tagging Streamline resources even if they are not required based on active Streamline features (default = false)\n"),
+	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarStreamlineDilateMotionVectors(
 	TEXT("r.Streamline.DilateMotionVectors"),
@@ -120,7 +124,6 @@ int GetViewIndexToTag()
 	return CVarStreamlineViewIndexToTag->GetInt();
 }
 
-
 bool NeedStreamlineViewIdOverride()
 {
 	if (CVarStreamlineViewIdOverride->GetInt() == -1)
@@ -133,16 +136,29 @@ bool NeedStreamlineViewIdOverride()
 	}
 }
 
+bool ForceTagStreamlineBuffers()
+{
+	static bool bStreamlineForceTagging = FParse::Param(FCommandLine::Get(), TEXT("slforcetagging"));
+	return bStreamlineForceTagging || CVarStreamlineForceTagging.GetValueOnAnyThread();
+}
+
+bool ShouldTagStreamlineBuffers()
+{
+	return ForceTagStreamlineBuffers() || IsDLSSGActive();
+}
+
 static FViewportRHIRef FindGameRHIViewport()
 {
 	// somewhat inspired by UE::DisplayCluster::Projection::EasyBlend::FindRHIViewport
 	FViewportRHIRef ViewportRHI{};
 	if (GEngine && GEngine->GameViewport)
 	{
+#if UE_VERSION_OLDER_THAN(5,8,0)
 		if (GEngine->GameViewport->Viewport)
 		{
 			ViewportRHI = GEngine->GameViewport->Viewport->GetViewportRHI();
 		}
+#endif
 		if (!ViewportRHI)
 		{
 			// since that didn't work, try slate instead
@@ -154,7 +170,11 @@ static FViewportRHIRef FindGameRHIViewport()
 				{
 					FSlateRenderer* SlateRenderer = FSlateApplication::Get().GetRenderer();
 					void* ViewportResource = SlateRenderer->GetViewportResource(*Window);
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+					ViewportRHI = static_cast<FRHIViewport*>(ViewportResource);
+#else
 					ViewportRHI = *((FViewportRHIRef*)ViewportResource);
+#endif
 				}
 			}
 		}
@@ -200,7 +220,6 @@ FStreamlineViewExtension::FStreamlineViewExtension(const FAutoRegister& AutoRegi
 		{
 			FSlateRenderer* SlateRenderer = FSlateApplication::Get().GetRenderer();
 			check(SlateRenderer);
-
 
 			UE_LOG(LogStreamline, Log, TEXT("Unregistering of OnPreResizeWindowBackBuffer callback during FSlateApplication::OnPreShutdown"));
 			SlateRenderer->OnPreResizeWindowBackBuffer().Remove(OnPreResizeWindowBackBufferHandle);
@@ -257,7 +276,6 @@ FStreamlineViewExtension::~FStreamlineViewExtension()
 
 void FStreamlineViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 {
-
 }
 
 void FStreamlineViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
@@ -356,7 +374,6 @@ void FStreamlineViewExtension::PreRenderViewFamily_RenderThread(FGraphBuilderOrC
 	
 	for (uint32 StaleView : StaleViews)
 	{
-
 		// an alternative to this could be to add "GetCommandListFromEither" function in the header...
 #if ENGINE_MAJOR_VERSION == 4 
 		GraphBuilderOrCmd.
@@ -381,7 +398,6 @@ void FStreamlineViewExtension::PostRenderView_RenderThread(FGraphBuilderOrCmdLis
 
 void FStreamlineViewExtension::PostRenderViewFamily_RenderThread(FGraphBuilderOrCmdList&, FSceneViewFamily& InViewFamily)
 {
-
 }
 
 void AddStreamlineUIHintTagPass(
@@ -397,8 +413,6 @@ void AddStreamlineUIHintTagPass(
 	bool HasViewIdOverride
 )
 {
-
-
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("Streamline Tag {Backbuffer=%u UIColorAndAlpha=%u} NumViews=%u  WindowClient%dx%d [%d,%d -> %d,%d] Texture=%s",
 			bTagBackbuffer, bTagUIColorAlpha,
@@ -449,7 +463,6 @@ void AddStreamlineUIHintTagPass(
 				});
 			}
 	});
-
 	
 	GraphBuilder.Execute();
 }
@@ -469,8 +482,6 @@ void FStreamlineViewExtension::SubscribeToPostProcessingPass(
 		InOutPassCallbacks.Add(FAfterPassCallbackDelegate::CreateRaw(this, &FStreamlineViewExtension::PostProcessPassAtEnd_RenderThread));
 	}
 }
-
-
 
 
 /*
@@ -581,7 +592,9 @@ FScreenPassTexture FStreamlineViewExtension::PostProcessPassAtEnd_RenderThread(F
 		ViewID, ViewRect.Width(), ViewRect.Height(),
 		ViewRect.Min.X, ViewRect.Min.Y,
 		ViewRect.Max.X, ViewRect.Max.Y);
+#if UE_VERSION_OLDER_THAN(5,8,0)
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Streamline);
+#endif
 
 	if (ShouldTagStreamlineBuffers())
 	{
@@ -632,8 +645,8 @@ FScreenPassTexture FStreamlineViewExtension::PostProcessPassAtEnd_RenderThread(F
 
 		FSLShaderParameters* PassParameters = GraphBuilder.AllocParameters<FSLShaderParameters>();
 
-		// Those are consumed directly by SL 
-		// FRDGTextureRef SLDepth = SceneDepth; 
+		// Those are consumed directly by SL
+		// FRDGTextureRef SLDepth = SceneDepth;
 
 		// Those hold the outputs from various render passes that convert from engine textures into the SL specific formats
 		FRDGTextureRef SLVelocity = nullptr;
@@ -797,7 +810,9 @@ FScreenPassTexture FStreamlineViewExtension::PostProcessPassAtEnd_RenderThread(F
 			SceneColor.ViewRect.Min.X, SceneColor.ViewRect.Min.Y,
 			SceneColor.ViewRect.Max.X, SceneColor.ViewRect.Max.Y
 		);
+#if UE_VERSION_OLDER_THAN(5,8,0)
 		RDG_GPU_STAT_SCOPE(GraphBuilder, StreamlineDeepDVC);
+#endif
 		// we wont need to run this always since (unlike FG) we skip the whole evaluate pass
 
 		AddStreamlineDeepDVCStateRenderPass(GraphBuilder, ViewID, SecondaryViewRect);
@@ -876,4 +891,3 @@ FScreenPassTexture FStreamlineViewExtension::PostProcessPassAtEnd_RenderThread(F
 	}
 }
 #undef LOCTEXT_NAMESPACE
- 

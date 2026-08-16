@@ -11,9 +11,13 @@
 
 #include "DLSSDenoiser.h"
 #include "DLSSUpscalerPrivate.h"
+#include "Misc/EngineVersionComparison.h"
 #include "PostProcess/TemporalAA.h"
 #include "SceneTextureParameters.h"
 #include "ScenePrivate.h"
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+#include "SceneViewState.h"
+#endif
 
 
 static TAutoConsoleVariable<int32> CVarNGXDLSSReflectionsTemporalAA(

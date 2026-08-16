@@ -11,7 +11,6 @@
 
 #include "StreamlineDLSSG.h"
 #include "StreamlineCore.h"
-#include "StreamlineShaders.h"
 #include "StreamlineCorePrivate.h"
 #include "StreamlineAPI.h"
 #include "StreamlineRHI.h"
@@ -22,12 +21,12 @@
 
 #include "CoreMinimal.h"
 #include "Framework/Application/SlateApplication.h"
+#include "RenderGraphBuilder.h"
+#include "ScenePrivate.h"
 #if UE_VERSION_AT_LEAST(5,8,0)
+#include "SceneViewState.h"
 #include "Slate/SlateViewportProvider.h"
 #endif
-#include "RenderGraphBuilder.h"
-#include "Runtime/Launch/Resources/Version.h"
-#include "ScenePrivate.h"
 #include "SystemTextures.h"
 #include "HAL/PlatformApplicationMisc.h"
 
@@ -88,12 +87,6 @@ static TAutoConsoleVariable<bool> CVarStreamlineDLSSGCheckStatusPerFrame(
 	TEXT("Check the DLSSG status at runtime and assert if it's failing somehow (default = true)\n"),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<bool> CVarStreamlineForceTagging(
-	TEXT("r.Streamline.ForceTagging"),
-	false,
-	TEXT("Force tagging Streamline resources even if they are not required based on active Streamline features (default = false)\n"),
-	ECVF_RenderThreadSafe);
-
 static TAutoConsoleVariable<bool> CVarStreamlineFullScreenMenuDetection(
 	TEXT("r.Streamline.DLSSG.FullScreenMenuDetection"),
 	false,
@@ -125,18 +118,6 @@ static TAutoConsoleVariable<int32> CVarStreamlineDLSSGFramesToGenerate(
 
 static int32 NumDLSSGInstances = 0;
 
-
-bool ForceTagStreamlineBuffers()
-{
-	static bool bStreamlineForceTagging = FParse::Param(FCommandLine::Get(), TEXT("slforcetagging"));
-	return bStreamlineForceTagging || CVarStreamlineForceTagging.GetValueOnAnyThread();
-}
-
-
-bool ShouldTagStreamlineBuffers()
-{
-	return ForceTagStreamlineBuffers() || IsDLSSGActive();
-}
 
 bool ShouldTrackViews()
 {
@@ -208,7 +189,11 @@ static void DLSSGOnBackBufferReadyToPresent(SWindow& InWindow
 {
 	check(IsInRenderingThread());
 
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+	const bool bIsGameWindow = InWindow.GetType() == EWindowType::Normal;
+#else
 	const bool bIsGameWindow = InWindow.GetType() == EWindowType::GameWindow;
+#endif
 #if WITH_EDITOR
 	const bool bIsPIEWindow = GIsEditor && (InWindow.GetTitle().ToString().Contains(TEXT("Preview [NetMode:")));
 #else
@@ -252,7 +237,15 @@ static void DLSSGOnBackBufferReadyToPresent(SWindow& InWindow
 		}
 		else
 		{
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+			// because the bIsGameWindow check above doesn't work in 5.8 :-(
+			if (GIsEditor)
+			{
+				return;
+			}
+#else
 			check(!GIsEditor);
+#endif
 		}
 	}
 	else

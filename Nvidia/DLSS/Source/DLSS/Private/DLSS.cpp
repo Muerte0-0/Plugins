@@ -48,8 +48,7 @@ static const TArray<EDLSSPreset> DeprecatedSRPresets = {
 	EDLSSPreset::A,
 	EDLSSPreset::B,
 	EDLSSPreset::C,
-	EDLSSPreset::D,
-	EDLSSPreset::E
+	EDLSSPreset::D
 };
 
 static TAutoConsoleVariable<int32> CVarNGXBinarySearchOrder(

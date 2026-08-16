@@ -12,6 +12,7 @@
 #include "StreamlineRHI.h"
 #include "StreamlineAPI.h"
 #include "StreamlineConversions.h"
+#include "StreamlineExtension.h"
 #include "StreamlineRHIPrivate.h"
 #include "StreamlineSettings.h"
 
@@ -888,23 +889,15 @@ static void RemoveDuplicateSlashesFromPath(FString& Path)
 	}
 }
 
-void FStreamlineRHIModule::InitializeStreamline()
+static TArray<FString> GetSLDLLSearchPaths(const TArray<FString>& StreamlineBinaryDirectories, bool bIsDLSSPluginEnabled, TSharedPtr<IPlugin>& DLSSPlugin)
 {
-	TArray<FString> StreamlineDLLSearchPaths;
+	TArray<FString> StreamlineDLLSearchPaths{ StreamlineBinaryDirectories };
 
-	StreamlineDLLSearchPaths.Append({ StreamlineBinaryDirectory });
-
-	// NGX will get initialized by Streamline below, long before the DLSS-SR plugin tries to initialize NGX in PostEngineInit.
-	// We have to add the DLSS-SR plugin's binaries to the NGX search path now, to avoid breaking DLSS-SR
-	// But only if the DLSS plugin itself loads the NGX libraries
-
-	TSharedPtr<IPlugin> DLSSPlugin = IPluginManager::Get().FindPlugin(TEXT("DLSS"));
-	const bool bIsDLSSPluginEnabled = DLSSPlugin && (DLSSPlugin->IsEnabled() || DLSSPlugin->IsEnabledByDefault(false));
 	if (bIsDLSSPluginEnabled)
 	{
 		// This is based on FDLSSModule::StartupModule()
 		auto CVarNGXEnable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.NGX.Enable"));
-		bool bLoadLibraries = CVarNGXEnable && CVarNGXEnable ->GetBool();
+		bool bLoadLibraries = CVarNGXEnable && CVarNGXEnable->GetBool();
 		auto CVarNGXEnableAllowCommandLine = IConsoleManager::Get().FindConsoleVariable(TEXT("r.NGX.Enable.AllowCommandLine"));
 
 		if (CVarNGXEnableAllowCommandLine && CVarNGXEnableAllowCommandLine->GetBool())
@@ -941,33 +934,11 @@ void FStreamlineRHIModule::InitializeStreamline()
 		UE_LOG(LogStreamlineRHI, Log, TEXT("DLSS plugin not enabled "));
 	}
 
-	TArray<const wchar_t*> StreamlineDLLSearchPathRawStrings;
+	return StreamlineDLLSearchPaths;
+}
 
-	for (int32 i = 0; i < StreamlineDLLSearchPaths.Num(); ++i)
-	{
-		StreamlineDLLSearchPaths[i] = FPaths::ConvertRelativePathToFull(StreamlineDLLSearchPaths[i]);
-		RemoveDuplicateSlashesFromPath(StreamlineDLLSearchPaths[i]);
-		FPaths::MakePlatformFilename(StreamlineDLLSearchPaths[i]);
-		FPaths::NormalizeDirectoryName(StreamlineDLLSearchPaths[i]);
-		// After this we should not touch StreamlineDLLSearchPaths since that provides the backing store for StreamlineDLLSearchPathRawStrings
-		StreamlineDLLSearchPathRawStrings.Add(*StreamlineDLLSearchPaths[i]);
-		const bool bHasStreamlineInterposerBinary = IPlatformFile::GetPlatformPhysical().FileExists(*FPaths::Combine(StreamlineDLLSearchPaths[i], STREAMLINE_INTERPOSER_BINARY_NAME));
-		UE_LOG(LogStreamlineRHI, Log, TEXT("NVIDIA Streamline interposer plugin %s %s in search path %s"), STREAMLINE_INTERPOSER_BINARY_NAME, bHasStreamlineInterposerBinary ? TEXT("found") : TEXT("not found"), *StreamlineDLLSearchPaths[i]);
-
-		// copied binary name here from the DLSS-SR plugin to avoid creating a dependency on that plugin
-#ifndef NGX_DLSS_SR_BINARY_NAME
-#define NGX_DLSS_SR_BINARY_NAME (TEXT("nvngx_dlss.dll"))
-#endif
-
-#ifdef NGX_DLSS_SR_BINARY_NAME
-		if (bIsDLSSPluginEnabled)
-		{
-			const bool bHasDLSSBinary = IPlatformFile::GetPlatformPhysical().FileExists(*FPaths::Combine(StreamlineDLLSearchPaths[i], NGX_DLSS_SR_BINARY_NAME));
-			UE_LOG(LogStreamlineRHI, Log, TEXT("NVIDIA NGX DLSS binary %s %s in search path %s"), NGX_DLSS_SR_BINARY_NAME, bHasDLSSBinary ? TEXT("found") : TEXT("not found"), *StreamlineDLLSearchPaths[i]);
-		}
-#endif
-	}
-
+void FStreamlineRHIModule::InitializeStreamline()
+{
 	sl::Preferences Preferences;
 	FMemory::Memzero(Preferences);
 
@@ -1010,9 +981,6 @@ void FStreamlineRHIModule::InitializeStreamline()
 		}
 	}
 
-	Preferences.pathsToPlugins = &StreamlineDLLSearchPathRawStrings[0];
-	Preferences.numPathsToPlugins = StreamlineDLLSearchPathRawStrings.Num();
-
 	// TODO: consider filling these in too
 	Preferences.pathToLogsAndData = nullptr;
 	Preferences.allocateCallback = nullptr;
@@ -1035,38 +1003,39 @@ void FStreamlineRHIModule::InitializeStreamline()
 	FTCHARToUTF8 ProjectIDUTF8(*ProjectID);
 	Preferences.projectId = ProjectIDUTF8.Get();
 
+	// NGX will get initialized by Streamline in slInit, long before the DLSS-SR plugin tries to initialize NGX in PostEngineInit.
+	// So we need to know if the DLSS-SR plugin is enabled and duplicate what it would do for NGX initialization, to avoid breaking DLSS-SR.
+	TSharedPtr<IPlugin> DLSSPlugin = IPluginManager::Get().FindPlugin(TEXT("DLSS"));
+	const bool bIsDLSSPluginEnabled = DLSSPlugin && (DLSSPlugin->IsEnabled() || DLSSPlugin->IsEnabledByDefault(false));
+
 	Preferences.applicationId = GetNGXAppID(bIsDLSSPluginEnabled);
 
 
-	struct SLFeatureDesc
-	{
-		sl::Feature SLFeature;
-		const TCHAR* UEPluginName; 
-		const TCHAR* FeatureName; 
-		const TCHAR* CommandLineSuffix;
-
-		const TCHAR* LoadCVar;
-		bool bAllowByDefault = true;
-	};
-
 	// metat data for the UE plugins and relevant SL plugins, their load cvars and their command lines
-	const TArray< SLFeatureDesc> SLFeatureDescs = 
+	TArray<FSLFeatureDesc> SLFeatureDescs =
 	{
-		{sl::kFeatureReflex, TEXT("StreamlineReflex"), TEXT("Reflex"), TEXT("reflex"), TEXT("r.Streamline.Load.Reflex"), true},
-		
-		{sl::kFeatureDLSS_G,   TEXT("StreamlineDLSSG"),    TEXT("DLSS-FG"),  TEXT("dlssg"),    TEXT("r.Streamline.Load.DLSSG"), true},
-	
-		{sl::kFeatureDeepDVC,  TEXT("StreamlineDeepDVC"),   TEXT("DeepDVC"), TEXT("deepdvc"),  TEXT("r.Streamline.Load.DeepDVC"), true }
+		{sl::kFeatureReflex, TEXT("StreamlineReflex"), TEXT("Reflex")},
+		{sl::kFeatureDeepDVC, TEXT("StreamlineDeepDVC"), TEXT("DeepDVC")}
 	};
+	// DLSS-FG feature doesn't follow the typical naming pattern, command line and cvar are "dlssg" not "dlssfg" for historical reasons
+	FSLFeatureDesc& FGFeature = SLFeatureDescs.Emplace_GetRef();
+	FGFeature.SLFeature = sl::kFeatureDLSS_G;
+	FGFeature.UEPluginName = TEXT("StreamlineDLSSG");
+	FGFeature.FeatureName = TEXT("DLSS-FG");
+	FGFeature.CommandLineSuffix = TEXT("dlssg");
+	FGFeature.LoadCVar = TEXT("r.Streamline.Load.DLSSG");
 
-	// Generate console variables  for each feature
+	SLFeatureDescs += FStreamlineExtensionModule::Get().GetRegisteredFeatures();
+
+	// Generate console variables for each feature
 
 	IConsoleManager& CVarManager = IConsoleManager::Get();
 
-	for (const SLFeatureDesc& FeatureDesc : SLFeatureDescs)
+	for (const FSLFeatureDesc& FeatureDesc : SLFeatureDescs)
 	{
 		const FString LoadCVarName = FeatureDesc.LoadCVar;
-		const FString Description = FString::Printf(TEXT("Determines whether feature %s is loaded. This can be useful to resolve conflicts where multiple SL features are incompatible with each other.\n"), FeatureDesc.FeatureName);
+		const FString Description = FString::Printf(TEXT("Determines whether feature %s is loaded. This can be useful to resolve conflicts where multiple SL features are incompatible with each other."),
+			*FeatureDesc.FeatureName);
 
 		CVarManager.RegisterConsoleVariable(
 			*LoadCVarName,
@@ -1080,76 +1049,118 @@ void FStreamlineRHIModule::InitializeStreamline()
 
 	TArray <FString> FeatureEnableDisableCommandlines;
 	TArray <FString> FeatureEnableDisableConsoleVariables;
+	// The default SL binary directory needs to be the first in the list because sl::Preferences::pathsToPlugins is surprising:
+	// - All directories in the list are used for NGX binaries (nvngx_*.dll)
+	// - Only the first directory in the list that contains a SL binary is used for SL binaries (sl.*.dll)
+	// As a result, plugins that implement SL features may optionally store NGX binaries in their own plugin but their SL
+	// binaries need to be stored in StreamlineCore.
+	TArray <FString> SLBinaryDirectories{ StreamlineBinaryDirectory };
 
 	// If the UE feature plugin is enabled
-	//     then the priority of what controls enabling the SL plugin is: command line -> load cvar ->  SLFeatureDesc::bAllowByDefault 
+	//     then the priority of what controls enabling the SL plugin is: command line -> load cvar ->  FSLFeatureDesc::bAllowByDefault
 	// else 
 	//     don't load the SL plugin at all.
-	auto EnableStreamlineFeature = [&Features, &FeatureEnableDisableCommandlines, &FeatureEnableDisableConsoleVariables](const SLFeatureDesc& FeatureDesc)
+	auto EnableStreamlineFeature =
+		[&Features, &FeatureEnableDisableCommandlines, &FeatureEnableDisableConsoleVariables, &SLBinaryDirectories, &BinaryFlavor = StreamlineBinaryFlavor]
+		(const FSLFeatureDesc& FeatureDesc)
 	{
-			TSharedPtr<IPlugin> RequiredPlugin = IPluginManager::Get().FindPlugin(FeatureDesc.UEPluginName);
-			const bool bIsRequiredPluginEnabled = RequiredPlugin && (RequiredPlugin->IsEnabled() || RequiredPlugin->IsEnabledByDefault(false));
+		TSharedPtr<IPlugin> RequiredPlugin = IPluginManager::Get().FindPlugin(FeatureDesc.UEPluginName);
+		const bool bIsRequiredPluginEnabled = RequiredPlugin && (RequiredPlugin->IsEnabled() || RequiredPlugin->IsEnabledByDefault(false));
 
-			if (!bIsRequiredPluginEnabled)
+		if (!bIsRequiredPluginEnabled)
+		{
+			UE_LOG(LogStreamlineRHI, Log, TEXT("Skipping loading Streamline %s since the corresponding UE %s plugin is not enabled"), *FeatureDesc.FeatureName, *FeatureDesc.UEPluginName);
+			return;
+		}
+
+		bool bAllowFeature = FeatureDesc.bAllowByDefault;
+
+		/*re-entrant, thus NON STATIC!*/ const auto CVarLoad = IConsoleManager::Get().FindConsoleVariable(*FeatureDesc.LoadCVar);
+		if (CVarLoad != nullptr)
+		{
+			FeatureEnableDisableConsoleVariables.Add(FeatureDesc.LoadCVar);
+			const bool bLoad = CVarLoad->GetBool();
+			bAllowFeature = bLoad;
+
+			if (bLoad)
 			{
-				UE_LOG(LogStreamlineRHI, Log, TEXT("Skipping loading Streamline %s since the corresponding UE %s plugin is not enabled"), FeatureDesc.FeatureName, FeatureDesc.UEPluginName);
-				return;
-			}
-
-			bool bAllowFeature = FeatureDesc.bAllowByDefault;
-
-			/*re-entrant, thus NON STATIC!*/ const auto CVarLoad = IConsoleManager::Get().FindConsoleVariable(FeatureDesc.LoadCVar);
-			if (CVarLoad != nullptr)
-			{
-				FeatureEnableDisableConsoleVariables.Add(FString(FeatureDesc.LoadCVar));
-				const bool bLoad = CVarLoad->GetBool();
-				bAllowFeature = bLoad;
-
-				if (bLoad)
-				{
-					UE_LOG(LogStreamlineRHI, Log, TEXT("Loading Streamline %s since the corresponding cvar %s is set to true"), FeatureDesc.FeatureName, FeatureDesc.LoadCVar);
-				}
-				else
-				{
-					UE_LOG(LogStreamlineRHI, Log, TEXT("Not loading Streamline %s since the corresponding cvar %s is set to false"), FeatureDesc.FeatureName, FeatureDesc.LoadCVar);
-				}
+				UE_LOG(LogStreamlineRHI, Log, TEXT("Loading Streamline %s since the corresponding cvar %s is set to true"), *FeatureDesc.FeatureName, *FeatureDesc.LoadCVar);
 			}
 			else
 			{
-				UE_LOG(LogStreamlineRHI, Warning, TEXT("Cannot find cvar %s that controls whether feature %s is loaded or not, so loading"), FeatureDesc.LoadCVar, FeatureDesc.FeatureName);
+				UE_LOG(LogStreamlineRHI, Log, TEXT("Not loading Streamline %s since the corresponding cvar %s is set to false"), *FeatureDesc.FeatureName, *FeatureDesc.LoadCVar);
 			}
+		}
+		else
+		{
+			UE_LOG(LogStreamlineRHI, Warning, TEXT("Cannot find cvar %s that controls whether feature %s is loaded or not, so loading"), *FeatureDesc.LoadCVar, *FeatureDesc.FeatureName);
+		}
 
-			// That's skipping the leading '-' intentionally
-			const FString AllowCMD = FString::Printf(TEXT("sl%s"), FeatureDesc.CommandLineSuffix);
-			const FString DisallowCMD = FString::Printf(TEXT("slno%s"), FeatureDesc.CommandLineSuffix);
+		// That's skipping the leading '-' intentionally
+		const FString AllowCMD = FString::Printf(TEXT("sl%s"), *FeatureDesc.CommandLineSuffix);
+		const FString DisallowCMD = FString::Printf(TEXT("slno%s"), *FeatureDesc.CommandLineSuffix);
 
-			// And this one has it intentinally for further logging
-			FeatureEnableDisableCommandlines.Add(FString::Printf(TEXT("-sl{no}%s"), FeatureDesc.CommandLineSuffix));
+		// And this one has it intentinally for further logging
+		FeatureEnableDisableCommandlines.Add(FString::Printf(TEXT("-sl{no}%s"), *FeatureDesc.CommandLineSuffix));
 
-			if (FParse::Param(FCommandLine::Get(), *AllowCMD))
+		if (FParse::Param(FCommandLine::Get(), *AllowCMD))
+		{
+			UE_LOG(LogStreamlineRHI, Log, TEXT("Loading Streamline %s due to -%s command line option"), *FeatureDesc.FeatureName, *AllowCMD);
+			bAllowFeature = true;
+		}
+		else if (FParse::Param(FCommandLine::Get(), *DisallowCMD))
+		{
+			UE_LOG(LogStreamlineRHI, Log, TEXT("Not loading Streamline %s due to -%s command line option"), *FeatureDesc.FeatureName, *DisallowCMD);
+			bAllowFeature = false;
+		}
+
+		if (bAllowFeature)
+		{
+			Features.Add(FeatureDesc.SLFeature);
+			for (const auto& BinaryDirectory : FeatureDesc.BinaryDirectories)
 			{
-				UE_LOG(LogStreamlineRHI, Log, TEXT("Loading Streamline %s due to -%s command line option"), FeatureDesc.FeatureName, *AllowCMD);
-				bAllowFeature = true;
+				SLBinaryDirectories.Add(FPaths::Combine(BinaryDirectory, BinaryFlavor));
 			}
-			else if (FParse::Param(FCommandLine::Get(), *DisallowCMD))
-			{
-				UE_LOG(LogStreamlineRHI, Log, TEXT("Not loading Streamline %s due to -%s command line option"), FeatureDesc.FeatureName, *DisallowCMD);
-				bAllowFeature = false;
-			}
-
-			if (bAllowFeature)
-			{
-				Features.Add(FeatureDesc.SLFeature);
-			}
+		}
 	};
 	
 	// enable features based on command line, cvar state etc
-	for (const SLFeatureDesc& FeatureDesc : SLFeatureDescs)
+	for (const FSLFeatureDesc& FeatureDesc : SLFeatureDescs)
 	{
 		EnableStreamlineFeature(FeatureDesc);
 	}
 
+	// Normalize paths and add NGX search paths if appropriate
+	TArray<FString> StreamlineDLLSearchPaths = GetSLDLLSearchPaths(SLBinaryDirectories, bIsDLSSPluginEnabled, DLSSPlugin);
+	TArray<const wchar_t*> StreamlineDLLSearchPathRawStrings;
 
+	for (int32 i = 0; i < StreamlineDLLSearchPaths.Num(); ++i)
+	{
+		StreamlineDLLSearchPaths[i] = FPaths::ConvertRelativePathToFull(StreamlineDLLSearchPaths[i]);
+		RemoveDuplicateSlashesFromPath(StreamlineDLLSearchPaths[i]);
+		FPaths::MakePlatformFilename(StreamlineDLLSearchPaths[i]);
+		FPaths::NormalizeDirectoryName(StreamlineDLLSearchPaths[i]);
+		// After this we should not touch StreamlineDLLSearchPaths since that provides the backing store for StreamlineDLLSearchPathRawStrings
+		StreamlineDLLSearchPathRawStrings.Add(*StreamlineDLLSearchPaths[i]);
+		const bool bHasStreamlineInterposerBinary = IPlatformFile::GetPlatformPhysical().FileExists(*FPaths::Combine(StreamlineDLLSearchPaths[i], STREAMLINE_INTERPOSER_BINARY_NAME));
+		UE_LOG(LogStreamlineRHI, Log, TEXT("NVIDIA Streamline interposer plugin %s %s in search path %s"), STREAMLINE_INTERPOSER_BINARY_NAME, bHasStreamlineInterposerBinary ? TEXT("found") : TEXT("not found"), *StreamlineDLLSearchPaths[i]);
+
+		// copied binary name here from the DLSS-SR plugin to avoid creating a dependency on that plugin
+#ifndef NGX_DLSS_SR_BINARY_NAME
+#define NGX_DLSS_SR_BINARY_NAME (TEXT("nvngx_dlss.dll"))
+#endif
+
+#ifdef NGX_DLSS_SR_BINARY_NAME
+		if (bIsDLSSPluginEnabled)
+		{
+			const bool bHasDLSSBinary = IPlatformFile::GetPlatformPhysical().FileExists(*FPaths::Combine(StreamlineDLLSearchPaths[i], NGX_DLSS_SR_BINARY_NAME));
+			UE_LOG(LogStreamlineRHI, Log, TEXT("NVIDIA NGX DLSS binary %s %s in search path %s"), NGX_DLSS_SR_BINARY_NAME, bHasDLSSBinary ? TEXT("found") : TEXT("not found"), *StreamlineDLLSearchPaths[i]);
+		}
+#endif
+	}
+
+	Preferences.pathsToPlugins = &StreamlineDLLSearchPathRawStrings[0];
+	Preferences.numPathsToPlugins = StreamlineDLLSearchPathRawStrings.Num();
 
 #if !UE_BUILD_SHIPPING
 	if ( ShouldLoadDebugOverlay())
@@ -1206,6 +1217,7 @@ void FStreamlineRHIModule::InitializeStreamline()
 	if (Result == sl::Result::eOk)
 	{
 		bIsStreamlineInitialized = true;
+		FStreamlineExtensionModule::Get().SetSLInitialized();
 	}
 	else
 	{
@@ -1265,8 +1277,6 @@ void FStreamlineRHIModule::StartupModule()
 	UE_LOG(LogStreamlineRHI, Log, TEXT("%s Enter"), ANSI_TO_TCHAR(__FUNCTION__));
 	if (FApp::CanEverRender())
 	{
-		FString StreamlineBinaryFlavor{};
-
 #if !(UE_BUILD_SHIPPING)
 		{
 			// debug overlay requires development binaries

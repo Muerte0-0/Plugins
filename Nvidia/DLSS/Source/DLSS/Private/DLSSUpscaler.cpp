@@ -163,7 +163,8 @@ static TAutoConsoleVariable<int32> CVarNGXDLSSBiasCurrentColorMaskStencilValue(
 
 DEFINE_GPU_STAT(DLSS);
 
-static const float kDLSSResolutionFractionError = 0.01f;
+// ViewRects can be quantized and that can occasionally push fractions more than 1% away from the target screen percentage
+static const float kDLSSResolutionFractionError = 0.02f;
 
 BEGIN_SHADER_PARAMETER_STRUCT(FDLSSShaderParameters, )
 
@@ -273,15 +274,17 @@ static NVSDK_NGX_DLSS_Hint_Render_Preset ToNGXDLSSPreset(EDLSSPreset DLSSPreset)
 		case EDLSSPreset::B:
 		case EDLSSPreset::C:
 		case EDLSSPreset::D:
-		case EDLSSPreset::E: 
 			/* fall through*/
 			ensureMsgf(false, TEXT("ToNGXDLSSPreset should not be called with a deprecated value"));
 		case EDLSSPreset::Default:
 			return NVSDK_NGX_DLSS_Hint_Render_Preset_Default;
 
+		case EDLSSPreset::E:
+			return NVSDK_NGX_DLSS_Hint_Render_Preset_E;
+
 		case EDLSSPreset::F:
 			return NVSDK_NGX_DLSS_Hint_Render_Preset_F;
-		
+
 		case EDLSSPreset::G:
 			return NVSDK_NGX_DLSS_Hint_Render_Preset_G;
 
@@ -761,7 +764,9 @@ ITemporalUpscaler::FOutputs FDLSSSceneViewFamilyUpscaler::AddPasses(
 	{
 
 		NV_RDG_EVENT_SCOPE(GraphBuilder, DLSS,"DLSS");
+#if UE_VERSION_OLDER_THAN(5,8,0)
 		RDG_GPU_STAT_SCOPE(GraphBuilder, DLSS);
+#endif
 
 		DLSSParameters.DenoiserMode = GetDenoiserMode(Upscaler);
 
@@ -897,12 +902,13 @@ FDLSSOutputs FDLSSSceneViewFamilyUpscaler::AddDLSSPass(
 
 	// This assert can accidentally hit with small viewrect dimensions (e.g. when resizing an editor view) due to floating point rounding & quantization issues
 	// e.g. with 33% screen percentage at 1000 DestRect dimension we get 333/1000 = 0.33 but at 10 DestRect dimension we get 3/10 0.3, thus the assert hits
-	checkf(DestRect.Width()  < 100 || GetMinUpsampleResolutionFraction() - kDLSSResolutionFractionError <= ScaleX && ScaleX <= GetMaxUpsampleResolutionFraction() + kDLSSResolutionFractionError,
-		TEXT("The current resolution fraction %f is out of the supported DLSS range [%f ... %f] for quality mode %d."),
-		ScaleX, GetMinUpsampleResolutionFraction(), GetMaxUpsampleResolutionFraction(), DLSSQualityMode);
-	checkf(DestRect.Height() < 100 || GetMinUpsampleResolutionFraction() - kDLSSResolutionFractionError <= ScaleY && ScaleY <= GetMaxUpsampleResolutionFraction() + kDLSSResolutionFractionError,
-		TEXT("The current resolution fraction %f is out of the supported DLSS range [%f ... %f] for quality mode %d."),
-		ScaleY, GetMinUpsampleResolutionFraction(), GetMaxUpsampleResolutionFraction(), DLSSQualityMode);
+
+	ensureMsgf(
+		(DestRect.Width() < 100 || GetMinUpsampleResolutionFraction() - kDLSSResolutionFractionError <= ScaleX && ScaleX <= GetMaxUpsampleResolutionFraction() + kDLSSResolutionFractionError) &&
+		(DestRect.Height() < 100 || GetMinUpsampleResolutionFraction() - kDLSSResolutionFractionError <= ScaleY && ScaleY <= GetMaxUpsampleResolutionFraction() + kDLSSResolutionFractionError),
+		TEXT("The current resolution fraction [%dx%d -> %dx%d] (%f,%f) is out of the supported DLSS range [%f ... %f] for quality mode %d."),
+		SrcRect.Width(), SrcRect.Height(), DestRect.Width(), DestRect.Height(), ScaleX, ScaleY, GetMinUpsampleResolutionFraction(), GetMaxUpsampleResolutionFraction(), DLSSQualityMode);
+
 
 	const TCHAR* PassName = TEXT("MainUpsampling");
 
@@ -996,8 +1002,13 @@ FDLSSOutputs FDLSSSceneViewFamilyUpscaler::AddDLSSPass(
 #if SUPPORT_GUIDE_GBUFFER
 			PassParameters->ReflectionHitDistance = Inputs.ReflectionHitDistance;
 
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+			PassParameters->ViewMatrix = (FMatrix44f)View.ViewMatrices.GetWorldToView();
+			PassParameters->ProjectionMatrix = (FMatrix44f)View.ViewMatrices.GetViewToClipNoAA();
+#else
 			PassParameters->ViewMatrix = (FMatrix44f)View.ViewMatrices.GetViewMatrix();
 			PassParameters->ProjectionMatrix = (FMatrix44f)View.ViewMatrices.GetProjectionNoAAMatrix();
+#endif
 #endif
 
 #if SUPPORT_GUIDE_SSS_DOF

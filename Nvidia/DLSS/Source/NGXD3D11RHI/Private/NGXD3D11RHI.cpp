@@ -302,7 +302,9 @@ void FNGXD3D11RHI::ExecuteDLSS(FRHICommandList& CmdList, const FRHIDLSSArguments
 
 	// execute
 
+#if UE_VERSION_OLDER_THAN(5,8,0)
 	D3D11RHI->RHIRegisterWork(1);
+#endif
 
 	if (InDLSSState->DLSSFeature->bHasDLSSRR)
 	{

@@ -33,7 +33,9 @@ public class StreamlineRHI : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Streamline",	// public dependency because StreamlineAPI.h is public API
+				"RenderCore",	// public dependency because StreamlineRHI.h needs it
+
+				"Streamline",	// public dependency because StreamlineAPI.h needs it
 				"StreamlineNGXCommon",
 			}
 			);
@@ -46,8 +48,9 @@ public class StreamlineRHI : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Projects",
-				"RenderCore",
 				"RHI",
+
+				"StreamlineExtension",
 			}
 			);
 		DynamicallyLoadedModuleNames.AddRange(

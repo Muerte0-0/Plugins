@@ -349,7 +349,7 @@ public:
 	};
 
 
-	virtual void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const TArrayView<const FRHIStreamlineResource> InResources) final
+	virtual void TagTextures(FRHICommandList& CmdList, uint32 InViewID, const sl::FrameToken& FrameToken, const TArrayView<const FRHIStreamlineResource> InResources, bool isValidUntilEval = false) final
 	{
 		RHI_SCOPED_DRAW_EVENT(CmdList, StreamlineTagTextures);
 
@@ -388,7 +388,14 @@ public:
 			sl::ResourceTag SLTag;
 			SLTag.type = ToSL(Resource.StreamlineTag);
 			// TODO: sl::ResourceLifecycle::eValidUntilPresent would be more efficient, are there any textures where it's applicable?
-			SLTag.lifecycle = sl::ResourceLifecycle::eOnlyValidNow;
+			if(isValidUntilEval)
+			{
+				SLTag.lifecycle = sl::ResourceLifecycle::eValidUntilEvaluate;
+			}
+			else
+			{
+				SLTag.lifecycle = sl::ResourceLifecycle::eOnlyValidNow;
+			}
 
 			if(Resource.Texture && Resource.Texture->IsValid())
 			{

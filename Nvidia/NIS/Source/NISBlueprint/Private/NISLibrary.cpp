@@ -116,7 +116,6 @@ float UNISLibrary::GetNISRecommendedScreenPercentage(UNISMode NISMode)
 		return 50.0;
 	case UNISMode::Custom:
 		return SavedCustomScreenPercentage;
-		break;
 	}
 }
 

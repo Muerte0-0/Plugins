@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020 - 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+* Copyright (c) 2020 - 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 *
 * NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
 * property and proprietary rights in and to this material, related
@@ -167,6 +167,7 @@ private:
 	static int32 PreviousShadowDenoiser;
 	static int32 PreviousLumenSSR;
 	static int32 PreviousLumenTemporal;
+	static int32 PreviousLumenReflectionExportHitT;
 	static int32 PreviousLumenBilateralFilter;
 	static bool bDenoisingRequested;
 

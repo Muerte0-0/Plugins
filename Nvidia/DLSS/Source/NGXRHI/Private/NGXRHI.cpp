@@ -11,6 +11,7 @@
 
 #include "NGXRHI.h"
 
+#include "Misc/EngineVersionComparison.h"
 #include "Misc/Paths.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "Interfaces/IPluginManager.h"
@@ -570,7 +571,13 @@ uint32 FRHIDLSSArguments::GetNGXCommonDLSSFeatureFlags() const
 	// DLSS-SR uses hardware depth
 	// DLSS-RR uses linear depth
 	if (DenoiserMode == ENGXDLSSDenoiserMode::Off)
+	{
+#if !UE_VERSION_OLDER_THAN(5,8,0)
+		DLSSFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_DepthInverted;
+#else
 		DLSSFeatureFlags |= bool(ERHIZBuffer::IsInverted) ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted : 0;
+#endif
+	}
 	DLSSFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
 	DLSSFeatureFlags |= bUseAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0;
 	DLSSFeatureFlags |= bEnableAlphaUpscaling ? NVSDK_NGX_DLSS_Feature_Flags_AlphaUpscaling : 0;

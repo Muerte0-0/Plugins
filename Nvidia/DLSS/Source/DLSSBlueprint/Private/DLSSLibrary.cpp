@@ -20,12 +20,18 @@
 
 #include "Interfaces/IPluginManager.h"
 #include "Modules/ModuleManager.h"
+#include "RendererInterface.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "Misc/EngineVersionComparison.h"
 
 #include "SceneView.h"
 #include "ShaderCore.h"
 
+
+// NvRTX engines define SUPPORT_RAW_STOCHASTIC_REFLECTIONS in RendererInterface.h
+#ifndef SUPPORT_RAW_STOCHASTIC_REFLECTIONS
+#define SUPPORT_RAW_STOCHASTIC_REFLECTIONS 0
+#endif
 
 // For IsRayTracingAllowed
 #if UE_VERSION_OLDER_THAN(5,2,0)
@@ -53,6 +59,7 @@ int32 UDLSSLibrary::MinDLSSRRDriverVersionMinor = 0; // placeholder
 int32 UDLSSLibrary::PreviousShadowDenoiser = 1;
 int32 UDLSSLibrary::PreviousLumenSSR = 1;
 int32 UDLSSLibrary::PreviousLumenTemporal = 1;
+int32 UDLSSLibrary::PreviousLumenReflectionExportHitT = 0;
 int32 UDLSSLibrary::PreviousLumenBilateralFilter = 1;
 bool UDLSSLibrary::bDenoisingRequested = false;
 
@@ -523,8 +530,14 @@ void UDLSSLibrary::EnableDLSSRR(bool bEnabled)
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shadow.Denoiser"))->Set(0);
 		PreviousLumenSSR             = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.ScreenSpaceReconstruction"))->GetInt();
 		PreviousLumenTemporal        = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.Temporal"))->GetInt();
+#if SUPPORT_RAW_STOCHASTIC_REFLECTIONS
+		PreviousLumenReflectionExportHitT = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.ExportHitT"))->GetInt();
+#endif
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.ScreenSpaceReconstruction"))->Set(0);
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.Temporal"))->Set(0);
+#if SUPPORT_RAW_STOCHASTIC_REFLECTIONS
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.ExportHitT"))->Set(1);
+#endif
 		static const auto CVarTemporalAAUpscaler = IConsoleManager::Get().FindConsoleVariable(TEXT("r.TemporalAA.Upscaler"));
 		CVarTemporalAAUpscaler->Set(1, ECVF_SetByCommandline);
 		PreviousLumenBilateralFilter = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.BilateralFilter"))->GetInt();
@@ -544,6 +557,9 @@ void UDLSSLibrary::EnableDLSSRR(bool bEnabled)
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shadow.Denoiser"))->Set(PreviousShadowDenoiser);
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.ScreenSpaceReconstruction"))->Set(PreviousLumenSSR);
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.Temporal"))->Set(PreviousLumenTemporal);
+#if SUPPORT_RAW_STOCHASTIC_REFLECTIONS
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.ExportHitT"))->Set(PreviousLumenReflectionExportHitT);
+#endif
 #if !UE_VERSION_OLDER_THAN(5,4,0)
 		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Lumen.Reflections.BilateralFilter"))->SetWithCurrentPriority(PreviousLumenBilateralFilter);
 #endif
